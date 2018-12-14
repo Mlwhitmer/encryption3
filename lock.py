@@ -6,8 +6,6 @@ from base64 import b64encode, b64decode
 import argparse
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
-from Crypto.Signature import pss
-from Crypto.Hash import SHA256
 from Crypto.Random import get_random_bytes
 from ecdsa import SigningKey
 import sys
@@ -64,9 +62,8 @@ enc_aes_key = cipher_rsa.encrypt(aes_key)
 
 #We will write the encrypted AES key to keyfile
 
-keyfile_out = open("keyfile", "w")
-keyfile = b64encode(enc_aes_key).decode('utf-8')
-keyfile_out.write(keyfile)
+keyfile_out = open("keyfile", "wb")
+keyfile_out.write(enc_aes_key)
 keyfile_out.close()
 
 #Get private key
@@ -83,14 +80,16 @@ for line in priv_in:
 
 priv_in.close()
 
-# #Sign with the locker's private key
+#Sign with the locker's private key
+
+keyfile_in = open("keyfile", "rb")
+keyfile = keyfile_in.read()
+keyfile_in.close()
 
 sk = SigningKey.from_pem(private_key)
-signature = sk.sign(keyfile.encode())
+signature = sk.sign(keyfile)
 
-keyfile_sig_out = open("keyfile.sig", "wb")
-keyfile_sig_out.write(signature)
-keyfile_sig_out.close()
+open("keyfile.sig", "wb").write(signature)
 
 #lock all files and files in sub directories in the specified directory
 for path, subdirs, files in walk(directory):
@@ -110,7 +109,6 @@ for path, subdirs, files in walk(directory):
         write_file.write(str(cipher_json))
         write_file.close()
 
-print()
 #lock all files and files in sub directories in the specified directory
 for path, subdirs, files in walk(directory):
     for name in files:
@@ -123,6 +121,3 @@ for path, subdirs, files in walk(directory):
 
         cipher = AES.new(aes_key, AES.MODE_GCM, cipher_json["nonce"])
         plaintext = cipher.decrypt_and_verify(cipher_json["ciphertext"], cipher_json["mac"])
-        #
-        print(plaintext.decode())
-        # print()

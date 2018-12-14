@@ -3,7 +3,7 @@
 
 from Crypto.PublicKey import RSA
 import argparse
-import ecdsa
+from ecdsa import SigningKey
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-t','--opt',required = True)
@@ -33,7 +33,6 @@ else:
 if key == 1:
 	k = RSA.generate(2048)
 	pub_out.write(k.publickey().exportKey('PEM'))
-	
 	pub_out = open(publicFile,"a+")
 	pub_out.write('\n')
 	pub_out.write("subject:")
@@ -55,7 +54,7 @@ if key == 1:
 	priv_out.write('\n')
 	priv_out.close()
 elif key == 2:
-	k = ecdsa.SigningKey.generate()
+	k = SigningKey.generate()
 	pub_out.write(k.get_verifying_key().to_pem())
 	pub_out = open(publicFile,"a+")
 	#pub_out.write('\n')

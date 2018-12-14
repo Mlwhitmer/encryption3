@@ -2,13 +2,13 @@
 #unlock
 
 import argparse
+import json
+from base64 import b64decode
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
-from Crypto.Signature import pss
-from Crypto.Hash import SHA256
-from Crypto.Random import get_random_bytes
-import ecdsa
+from ecdsa import VerifyingKey, BadSignatureError
 import sys
+import os
 from os import walk
 from os.path import isfile, join
 
@@ -42,11 +42,11 @@ if pub_subject != subject:
 
 
 #get keyfile and keyfile.sig
-keyfile_in = open("keyfile", "r")
+keyfile_in = open("keyfile", "rb")
 keyfile = keyfile_in.read()
 keyfile_in.close()
 
-keyfile_sig_in = open("keyfile.sig", "r")
+keyfile_sig_in = open("keyfile.sig", "rb")
 keyfile_sig = keyfile_sig_in.read()
 keyfile_sig_in.close()
 
@@ -78,13 +78,41 @@ for line in priv_in:
 
 priv_in.close()
 
-cipher_rsa = PKCS1_OAEP.new(private_key)
-key = cipher_rsa.decrypt(keyfile)
-print(key)
+#Verify keyfile.sig
+vk = VerifyingKey.from_pem(public_key)
+try:
+    vk.verify(keyfile_sig, keyfile)
+except:
+    print("BAD SIGNATURE! Aborting...")
+    sys.exit()
 
-# key = RSA.import_key(public_key)
-# h = SHA256.new(bytearray(keyfile))
-# verifier = pss.new(key)
+#Fetch AES key
+rsa_key = RSA.import_key(private_key)
+cipher_rsa = PKCS1_OAEP.new(rsa_key)
+aes_key = cipher_rsa.decrypt(keyfile)
 
-# verifier.verify(h, keyfile_sig)
+
+#Delete keyfile and keyfile.sig
+os.remove("keyfile")
+os.remove("keyfile.sig")
+
+
+#lock all files and files in sub directories in the specified directory
+for path, subdirs, files in walk(directory):
+    for name in files:
+        read_file = open(join(path, name), "r")
+        cipher_content = read_file.read()
+        cipher_json = json.loads(cipher_content)
+        cipher_json["nonce"] = b64decode(cipher_json["nonce"])
+        cipher_json["ciphertext"] = b64decode(cipher_json["ciphertext"])
+        cipher_json["mac"] = b64decode(cipher_json["mac"])
+
+        cipher = AES.new(aes_key, AES.MODE_GCM, cipher_json["nonce"])
+
+        plaintext = cipher.decrypt_and_verify(cipher_json["ciphertext"], cipher_json["mac"])
+
+        write_file = open(join(path, name), "w")
+        write_file.write(plaintext.decode())
+        write_file.close()
+
 
